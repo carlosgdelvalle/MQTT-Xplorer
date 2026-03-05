@@ -8,6 +8,7 @@
     <AssemblyTitle>Explorador MQTT</AssemblyTitle>
     <Product>Explorador MQTT</Product>
     <Description>Explorador MQTT desktop client.</Description>
+    <ApplicationIcon>Assets\configuration.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
