@@ -27,13 +27,25 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private DateTimeOffset _lastTreeInteractionAt = DateTimeOffset.MinValue;
 
     [ObservableProperty] private string _connectionName = "Local broker";
-    [ObservableProperty] private string _connectionId = "local";
-    [ObservableProperty] private string _brokerUrl = "mqtt://localhost:1883";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanConnect))]
+    [NotifyPropertyChangedFor(nameof(ConnectionValidationError))]
+    [NotifyPropertyChangedFor(nameof(HasConnectionValidationError))]
+    private string _connectionId = "local";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanConnect))]
+    [NotifyPropertyChangedFor(nameof(ConnectionValidationError))]
+    [NotifyPropertyChangedFor(nameof(HasConnectionValidationError))]
+    private string _brokerUrl = "mqtt://localhost:1883";
     [ObservableProperty] private string _username = string.Empty;
     [ObservableProperty] private string _password = string.Empty;
     [ObservableProperty] private bool _tls;
     [ObservableProperty] private bool _certValidation = true;
-    [ObservableProperty] private string _subscriptions = "#";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanConnect))]
+    [NotifyPropertyChangedFor(nameof(ConnectionValidationError))]
+    [NotifyPropertyChangedFor(nameof(HasConnectionValidationError))]
+    private string _subscriptions = "#";
     [ObservableProperty] private string _status = "Disconnected";
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private TopicNodeViewModel? _selectedNode;
@@ -43,6 +55,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private string _publishPayload = string.Empty;
     [ObservableProperty] private bool _publishRetain;
     [ObservableProperty] private QoS _publishQos = QoS.AtMostOnce;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPendingUpdates))]
+    [NotifyPropertyChangedFor(nameof(PendingUpdatesLabel))]
+    private int _pendingUpdateCount;
+    [ObservableProperty] private bool _autoRefreshWhileBrowsing = true;
+    [ObservableProperty] private string _topicFilter = string.Empty;
 
     public ObservableCollection<TopicNodeViewModel> TopicNodes { get; } = [];
     public ObservableCollection<ConnectionProfile> SavedConnections { get; } = [];
@@ -82,6 +100,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     public string SelectedPayload =>
         SelectedNode?.PayloadText ?? "(no payload)";
+    public bool HasPendingUpdates => PendingUpdateCount > 0;
+    public string PendingUpdatesLabel => PendingUpdateCount > 0 ? $"{PendingUpdateCount} pending updates" : "Up to date";
+    public bool CanConnect => string.IsNullOrWhiteSpace(ConnectionValidationError);
+    public bool HasConnectionValidationError => !CanConnect;
+    public string ConnectionValidationError => ValidateConnectionInputs();
 
     partial void OnSelectedNodeChanged(TopicNodeViewModel? value)
     {
@@ -89,6 +112,19 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         if (value is not null && string.IsNullOrWhiteSpace(PublishTopic))
         {
             PublishTopic = value.FullPath;
+        }
+    }
+
+    partial void OnTopicFilterChanged(string value)
+    {
+        RebuildTopicTree();
+    }
+
+    partial void OnAutoRefreshWhileBrowsingChanged(bool value)
+    {
+        if (value && HasPendingUpdates)
+        {
+            ApplyPendingUpdates();
         }
     }
 
@@ -114,6 +150,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         try
         {
+            if (!CanConnect)
+            {
+                Status = ConnectionValidationError;
+                return;
+            }
+
             var options = new MqttConnectionOptions
             {
                 Url = BrokerUrl,
@@ -248,23 +290,33 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private void FlushPendingTreeUpdates()
     {
-        if (_pendingMessages.IsEmpty)
-        {
-            return;
-        }
-
         try
         {
+            var dequeuedCount = 0;
             while (_pendingMessages.TryDequeue(out var message))
             {
                 _topicTree.Enqueue(message);
+                dequeuedCount++;
             }
 
-            _topicTree.ApplyUnmergedChanges();
-            var isUserExploring = DateTimeOffset.UtcNow - _lastTreeInteractionAt < TimeSpan.FromSeconds(2);
-            if (!isUserExploring)
+            if (dequeuedCount > 0)
+            {
+                _topicTree.ApplyUnmergedChanges();
+            }
+
+            if (dequeuedCount == 0 && !HasPendingUpdates)
+            {
+                return;
+            }
+
+            if (ShouldRefreshTreeNow())
             {
                 RebuildTopicTree();
+                PendingUpdateCount = 0;
+            }
+            else if (dequeuedCount > 0)
+            {
+                PendingUpdateCount += dequeuedCount;
             }
         }
         catch (Exception ex)
@@ -281,8 +333,16 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             .Select(e => e.Target!)
             .ToArray();
 
-        var flatNodes = FlattenNodes(roots).ToArray();
-        TopicTreeSource = CreateTopicTreeSource(flatNodes);
+        var flatNodes = FlattenNodes(roots);
+        var filter = TopicFilter.Trim();
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            flatNodes = flatNodes.Where(node =>
+                node.Name.Contains(filter, StringComparison.OrdinalIgnoreCase) ||
+                node.FullPath.Contains(filter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        TopicTreeSource = CreateTopicTreeSource(flatNodes.ToArray());
     }
 
     private static void SyncNodes(
@@ -443,6 +503,86 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 yield return child;
             }
         }
+    }
+
+    [RelayCommand]
+    private void ApplyPendingUpdates()
+    {
+        try
+        {
+            while (_pendingMessages.TryDequeue(out var message))
+            {
+                _topicTree.Enqueue(message);
+            }
+
+            _topicTree.ApplyUnmergedChanges();
+            RebuildTopicTree();
+            PendingUpdateCount = 0;
+        }
+        catch (Exception ex)
+        {
+            Status = $"Error: {ex.Message}";
+        }
+    }
+
+    private bool ShouldRefreshTreeNow()
+    {
+        if (!AutoRefreshWhileBrowsing)
+        {
+            return false;
+        }
+
+        var isUserExploring = DateTimeOffset.UtcNow - _lastTreeInteractionAt < TimeSpan.FromSeconds(2);
+        return !isUserExploring;
+    }
+
+    private string ValidateConnectionInputs()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionId))
+        {
+            return "Connection Id is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(BrokerUrl))
+        {
+            return "Broker URL is required.";
+        }
+
+        if (!Uri.TryCreate(BrokerUrl, UriKind.Absolute, out var brokerUri))
+        {
+            return "Broker URL must be an absolute URI (e.g. mqtt://localhost:1883).";
+        }
+
+        if (!IsSupportedScheme(brokerUri.Scheme))
+        {
+            return "Broker URL scheme must be mqtt, mqtts, ws, or wss.";
+        }
+
+        if (!AreSubscriptionsValid(Subscriptions))
+        {
+            return "Subscriptions must be comma-separated non-empty topics.";
+        }
+
+        return string.Empty;
+    }
+
+    private static bool IsSupportedScheme(string scheme)
+    {
+        return scheme.Equals("mqtt", StringComparison.OrdinalIgnoreCase) ||
+               scheme.Equals("mqtts", StringComparison.OrdinalIgnoreCase) ||
+               scheme.Equals("ws", StringComparison.OrdinalIgnoreCase) ||
+               scheme.Equals("wss", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool AreSubscriptionsValid(string rawSubscriptions)
+    {
+        if (string.IsNullOrWhiteSpace(rawSubscriptions))
+        {
+            return true;
+        }
+
+        var segments = rawSubscriptions.Split(',');
+        return segments.All(segment => !string.IsNullOrWhiteSpace(segment));
     }
 
     private static IReadOnlyList<Subscription> ParseSubscriptions(string value)

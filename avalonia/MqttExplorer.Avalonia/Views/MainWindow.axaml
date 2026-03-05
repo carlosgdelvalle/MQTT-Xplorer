@@ -45,15 +45,31 @@
             <TextBox Text="{Binding Subscriptions}" />
             <CheckBox Content="TLS" IsChecked="{Binding Tls}" />
             <CheckBox Content="Validate Certificates" IsChecked="{Binding CertValidation}" />
+            <TextBlock Text="{Binding ConnectionValidationError}"
+                       Foreground="#D13438"
+                       TextWrapping="Wrap"
+                       IsVisible="{Binding HasConnectionValidationError}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Connect" Command="{Binding ConnectCommand}" />
+                <Button Content="Connect"
+                        Command="{Binding ConnectCommand}"
+                        IsEnabled="{Binding CanConnect}" />
                 <Button Content="Disconnect" Command="{Binding DisconnectCommand}" />
             </StackPanel>
         </StackPanel>
 
-        <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*" Margin="0,12,12,0">
+        <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="0,12,12,0">
             <TextBlock Grid.Row="0" Text="Topic Tree (live)" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" />
-            <Border Grid.Row="1" BorderThickness="1" BorderBrush="#3A3A3A" Padding="6">
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,220,12,Auto,12,*,Auto" Margin="0,0,0,8">
+                <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding TopicFilter}" Watermark="topic/path contains..." />
+                <CheckBox Grid.Column="3" Content="Auto-refresh while browsing" IsChecked="{Binding AutoRefreshWhileBrowsing}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="5" Text="{Binding PendingUpdatesLabel}" VerticalAlignment="Center" />
+                <Button Grid.Column="6"
+                        Content="Apply updates"
+                        Command="{Binding ApplyPendingUpdatesCommand}"
+                        IsEnabled="{Binding HasPendingUpdates}" />
+            </Grid>
+            <Border Grid.Row="2" BorderThickness="1" BorderBrush="#3A3A3A" Padding="6">
                 <tdg:TreeDataGrid Source="{Binding TopicTreeSource}"
                                   VerticalAlignment="Stretch"
                                   HorizontalAlignment="Stretch"
