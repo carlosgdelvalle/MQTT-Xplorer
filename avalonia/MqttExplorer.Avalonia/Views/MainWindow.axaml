@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MqttExplorer.Avalonia.ViewModels"
         xmlns:tdg="clr-namespace:Avalonia.Controls;assembly=Avalonia.Controls.TreeDataGrid"
+        xmlns:input="clr-namespace:Avalonia.Input;assembly=Avalonia.Base"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
@@ -59,12 +60,18 @@
 
         <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="0,12,12,0">
             <TextBlock Grid.Row="0" Text="Topic Tree (live)" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" />
-            <Grid Grid.Row="1" ColumnDefinitions="Auto,220,12,Auto,12,*,Auto" Margin="0,0,0,8">
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,220,8,Auto,8,Auto,8,Auto,8,*,Auto" Margin="0,0,0,8">
                 <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" />
-                <TextBox Grid.Column="1" Text="{Binding TopicFilter}" Watermark="topic/path contains..." />
-                <CheckBox Grid.Column="3" Content="Auto-refresh while browsing" IsChecked="{Binding AutoRefreshWhileBrowsing}" VerticalAlignment="Center" />
-                <TextBlock Grid.Column="5" Text="{Binding PendingUpdatesLabel}" VerticalAlignment="Center" />
-                <Button Grid.Column="6"
+                <TextBox Grid.Column="1" Text="{Binding TopicFilter}" Watermark="topic/path contains...">
+                    <TextBox.KeyBindings>
+                        <input:KeyBinding Gesture="Enter" Command="{Binding ApplyTopicFilterCommand}" />
+                        <input:KeyBinding Gesture="Escape" Command="{Binding ClearTopicFilterCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+                <Button Grid.Column="3" Content="Clear" Command="{Binding ClearTopicFilterCommand}" />
+                <CheckBox Grid.Column="5" Content="Auto-refresh while browsing" IsChecked="{Binding AutoRefreshWhileBrowsing}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="9" Text="{Binding PendingUpdatesLabel}" VerticalAlignment="Center" />
+                <Button Grid.Column="10"
                         Content="Apply updates"
                         Command="{Binding ApplyPendingUpdatesCommand}"
                         IsEnabled="{Binding HasPendingUpdates}" />
@@ -95,7 +102,9 @@
             <TextBlock Text="QoS" />
             <ComboBox ItemsSource="{Binding QosLevels}" SelectedItem="{Binding PublishQos}" />
             <CheckBox Content="Retain" IsChecked="{Binding PublishRetain}" />
-            <Button Content="Publish" Command="{Binding PublishCommand}" />
+            <Button Content="Publish"
+                    Command="{Binding PublishCommand}"
+                    IsEnabled="{Binding CanPublish}" />
         </StackPanel>
     </Grid>
 

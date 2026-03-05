@@ -22,9 +22,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly IMqttConnectionManager _connectionManager;
     private readonly IConfigStore _configStore;
     private readonly TopicTree _topicTree = new();
+    private readonly Dictionary<string, TopicActivity> _lastMessageByPath = new(StringComparer.Ordinal);
     private readonly ConcurrentQueue<MqttMessageDto> _pendingMessages = new();
     private readonly DispatcherTimer _treeUpdateTimer;
     private DateTimeOffset _lastTreeInteractionAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastActivityRefreshAt = DateTimeOffset.MinValue;
+    private bool _isProgrammaticSelection;
 
     [ObservableProperty] private string _connectionName = "Local broker";
     [ObservableProperty]
@@ -47,11 +50,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(HasConnectionValidationError))]
     private string _subscriptions = "#";
     [ObservableProperty] private string _status = "Disconnected";
-    [ObservableProperty] private bool _isConnected;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanPublish))]
+    private bool _isConnected;
     [ObservableProperty] private TopicNodeViewModel? _selectedNode;
     [ObservableProperty] private ConnectionProfile? _selectedConnection;
 
-    [ObservableProperty] private string _publishTopic = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanPublish))]
+    private string _publishTopic = string.Empty;
     [ObservableProperty] private string _publishPayload = string.Empty;
     [ObservableProperty] private bool _publishRetain;
     [ObservableProperty] private QoS _publishQos = QoS.AtMostOnce;
@@ -105,6 +112,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public bool CanConnect => string.IsNullOrWhiteSpace(ConnectionValidationError);
     public bool HasConnectionValidationError => !CanConnect;
     public string ConnectionValidationError => ValidateConnectionInputs();
+    public bool CanPublish => IsConnected && !string.IsNullOrWhiteSpace(PublishTopic);
 
     partial void OnSelectedNodeChanged(TopicNodeViewModel? value)
     {
@@ -236,6 +244,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         try
         {
+            if (!IsConnected)
+            {
+                Status = "Connect first before publishing.";
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(PublishTopic))
             {
                 Status = "Publish topic is required.";
@@ -295,6 +309,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             var dequeuedCount = 0;
             while (_pendingMessages.TryDequeue(out var message))
             {
+                TrackTopicActivity(message);
                 _topicTree.Enqueue(message);
                 dequeuedCount++;
             }
@@ -306,13 +321,19 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
             if (dequeuedCount == 0 && !HasPendingUpdates)
             {
-                return;
+                var needsActivityRefresh = HasRecentActivity() &&
+                    DateTimeOffset.UtcNow - _lastActivityRefreshAt >= TimeSpan.FromSeconds(1);
+                if (!needsActivityRefresh)
+                {
+                    return;
+                }
             }
 
             if (ShouldRefreshTreeNow())
             {
                 RebuildTopicTree();
                 PendingUpdateCount = 0;
+                _lastActivityRefreshAt = DateTimeOffset.UtcNow;
             }
             else if (dequeuedCount > 0)
             {
@@ -327,13 +348,15 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private void RebuildTopicTree()
     {
+        var previouslySelectedPath = SelectedNode?.FullPath;
+        var snapshotTime = DateTimeOffset.UtcNow;
         var roots = _topicTree.EdgeArray
             .OrderBy(e => e.Name)
             .Where(e => e.Target is not null)
             .Select(e => e.Target!)
             .ToArray();
 
-        var flatNodes = FlattenNodes(roots);
+        var flatNodes = FlattenNodes(roots, snapshotTime);
         var filter = TopicFilter.Trim();
         if (!string.IsNullOrWhiteSpace(filter))
         {
@@ -342,7 +365,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 node.FullPath.Contains(filter, StringComparison.OrdinalIgnoreCase));
         }
 
-        TopicTreeSource = CreateTopicTreeSource(flatNodes.ToArray());
+        var snapshot = flatNodes.ToArray();
+        TopicTreeSource = CreateTopicTreeSource(snapshot);
+        RestoreSelection(snapshot, previouslySelectedPath);
     }
 
     private static void SyncNodes(
@@ -453,7 +478,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             Columns =
             {
+                new TextColumn<TopicNodeViewModel, string>("", node => node.ActivityIndicator),
                 new TextColumn<TopicNodeViewModel, string>("Topic", node => node.DisplayName),
+                new TextColumn<TopicNodeViewModel, string>("Last Message", node => node.LastMessagePreview),
+                new TextColumn<TopicNodeViewModel, string>("Updated", node => node.ReceivedAgo),
                 new TextColumn<TopicNodeViewModel, string>("Path", node => node.FullPath),
             },
         };
@@ -464,7 +492,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             var selected = source.RowSelection.SelectedItem;
             if (selected is TopicNodeViewModel selectedNode)
             {
-                _lastTreeInteractionAt = DateTimeOffset.UtcNow;
+                if (!_isProgrammaticSelection)
+                {
+                    _lastTreeInteractionAt = DateTimeOffset.UtcNow;
+                }
                 SelectedNode = selectedNode;
             }
         };
@@ -472,24 +503,69 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         return source;
     }
 
-    private static IEnumerable<TopicNodeViewModel> FlattenNodes(IEnumerable<TreeNode> roots)
+    private void RestoreSelection(IReadOnlyList<TopicNodeViewModel> snapshot, string? selectedPath)
+    {
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return;
+        }
+
+        var matchIndex = -1;
+        for (var i = 0; i < snapshot.Count; i++)
+        {
+            if (string.Equals(snapshot[i].FullPath, selectedPath, StringComparison.Ordinal))
+            {
+                matchIndex = i;
+                break;
+            }
+        }
+
+        if (matchIndex < 0)
+        {
+            return;
+        }
+
+        _isProgrammaticSelection = true;
+        try
+        {
+            TopicTreeSource.RowSelection?.Select(matchIndex);
+            SelectedNode = snapshot[matchIndex];
+        }
+        finally
+        {
+            _isProgrammaticSelection = false;
+        }
+    }
+
+    private IEnumerable<TopicNodeViewModel> FlattenNodes(IEnumerable<TreeNode> roots, DateTimeOffset snapshotTime)
     {
         foreach (var root in roots)
         {
-            foreach (var item in FlattenNode(root, 0))
+            foreach (var item in FlattenNode(root, 0, snapshotTime))
             {
                 yield return item;
             }
         }
     }
 
-    private static IEnumerable<TopicNodeViewModel> FlattenNode(TreeNode node, int depth)
+    private IEnumerable<TopicNodeViewModel> FlattenNode(TreeNode node, int depth, DateTimeOffset snapshotTime)
     {
+        var path = node.Path();
+        var payloadText = node.Message?.Payload?.Format(node.Type).Text ?? "(empty)";
+        _lastMessageByPath.TryGetValue(path, out var activity);
+        var hasRecentActivity = activity is not null &&
+            snapshotTime - activity.ReceivedAt <= TimeSpan.FromSeconds(2);
+        var receivedAgo = activity is null ? string.Empty : FormatRelativeTime(snapshotTime - activity.ReceivedAt);
+        var lastMessage = activity?.LastMessagePreview ?? TruncatePayload(payloadText);
+
         yield return new TopicNodeViewModel(
             node.SourceEdge?.Name ?? "(root)",
-            node.Path(),
-            node.Message?.Payload?.Format(node.Type).Text ?? "(empty)",
-            depth);
+            path,
+            payloadText,
+            depth,
+            lastMessage,
+            receivedAgo,
+            hasRecentActivity);
 
         foreach (var edge in node.EdgeArray.OrderBy(e => e.Name))
         {
@@ -498,7 +574,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 continue;
             }
 
-            foreach (var child in FlattenNode(edge.Target, depth + 1))
+            foreach (var child in FlattenNode(edge.Target, depth + 1, snapshotTime))
             {
                 yield return child;
             }
@@ -585,6 +661,85 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         return segments.All(segment => !string.IsNullOrWhiteSpace(segment));
     }
 
+    [RelayCommand]
+    private void ApplyTopicFilter()
+    {
+        RebuildTopicTree();
+    }
+
+    [RelayCommand]
+    private void ClearTopicFilter()
+    {
+        if (!string.IsNullOrEmpty(TopicFilter))
+        {
+            TopicFilter = string.Empty;
+            return;
+        }
+
+        RebuildTopicTree();
+    }
+
+    private void TrackTopicActivity(MqttMessageDto message)
+    {
+        if (string.IsNullOrWhiteSpace(message.Topic))
+        {
+            return;
+        }
+
+        var preview = TruncatePayload(message.Payload?.Format().Text ?? string.Empty);
+        _lastMessageByPath[message.Topic] = new TopicActivity(preview, DateTimeOffset.UtcNow);
+    }
+
+    private bool HasRecentActivity()
+    {
+        if (_lastMessageByPath.Count == 0)
+        {
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        return _lastMessageByPath.Values.Any(activity =>
+            now - activity.ReceivedAt <= TimeSpan.FromSeconds(2));
+    }
+
+    private static string TruncatePayload(string payload)
+    {
+        if (string.IsNullOrEmpty(payload))
+        {
+            return string.Empty;
+        }
+
+        var collapsed = payload.Replace('\r', ' ').Replace('\n', ' ');
+        return collapsed.Length <= 80
+            ? collapsed
+            : $"{collapsed[..77]}...";
+    }
+
+    private static string FormatRelativeTime(TimeSpan elapsed)
+    {
+        if (elapsed < TimeSpan.Zero)
+        {
+            elapsed = TimeSpan.Zero;
+        }
+
+        if (elapsed < TimeSpan.FromSeconds(1))
+        {
+            return "just now";
+        }
+
+        if (elapsed < TimeSpan.FromMinutes(1))
+        {
+            return $"{(int)elapsed.TotalSeconds}s ago";
+        }
+
+        if (elapsed < TimeSpan.FromHours(1))
+        {
+            return $"{(int)elapsed.TotalMinutes}m ago";
+        }
+
+        return $"{(int)elapsed.TotalHours}h ago";
+    }
+
     private static IReadOnlyList<Subscription> ParseSubscriptions(string value)
     {
         var topics = value
@@ -645,6 +800,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         await PersistConnectionsAsync();
         Status = "Imported legacy connections.";
+    }
+
+    private sealed class TopicActivity(string lastMessagePreview, DateTimeOffset receivedAt)
+    {
+        public string LastMessagePreview { get; } = lastMessagePreview;
+        public DateTimeOffset ReceivedAt { get; } = receivedAt;
     }
 
     private sealed class LegacyConnection
