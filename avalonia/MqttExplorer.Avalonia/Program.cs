@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using System;
 
 namespace MqttExplorer.Avalonia;
@@ -15,6 +15,10 @@ sealed class Program
     // Avalonia configuration, don't remove; also used by visual designer.
     public static AppBuilder BuildAvaloniaApp()
         => AppBuilder.Configure<App>()
+            .With(new MacOSPlatformOptions
+            {
+                DisableDefaultApplicationMenuItems = true,
+            })
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();

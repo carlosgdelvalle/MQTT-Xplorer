@@ -8,6 +8,11 @@
     <AssemblyTitle>Explorador MQTT</AssemblyTitle>
     <Product>Explorador MQTT</Product>
     <Description>Explorador MQTT desktop client.</Description>
+    <Company>CdV/PYV</Company>
+    <Copyright>CdV 2026</Copyright>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
     <ApplicationIcon>Assets\configuration.ico</ApplicationIcon>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>

@@ -1,0 +1,38 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MqttExplorer.Avalonia.ViewModels"
+        x:Class="MqttExplorer.Avalonia.Views.AboutWindow"
+        x:DataType="vm:AboutDialogViewModel"
+        Title="Acerca de Explorador MQTT"
+        Width="520"
+        Height="340"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Icon="/Assets/configuration.ico">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="16">
+        <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center">
+            <Image Source="/Assets/configuration.png" Width="72" Height="72" />
+            <TextBlock Text="{Binding AppTitle}" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="8" Margin="0,14,0,0">
+            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding VersionText}" />
+            <TextBlock Text="{Binding AuthorText}" />
+            <TextBlock Text="{Binding CopyrightText}" />
+            <TextBlock Text="{Binding CreditsText}" />
+            <TextBlock Text="{Binding ReportIssueText}"
+                       Foreground="#4EA1FF"
+                       TextDecorations="Underline"
+                       Cursor="Hand"
+                       PointerPressed="OnReportIssuePressed" />
+        </StackPanel>
+
+        <Button Grid.Row="2"
+                HorizontalAlignment="Right"
+                MinWidth="100"
+                Content="Cerrar"
+                Click="OnCloseClick" />
+    </Grid>
+</Window>
