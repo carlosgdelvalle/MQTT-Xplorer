@@ -20,3 +20,4 @@
 ## Output
 
 - Build artifacts are created under `avalonia/artifacts/`.
+- Published executable name: `Explorador MQTT` (`Explorador MQTT.exe` on Windows).

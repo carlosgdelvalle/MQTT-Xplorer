@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_PROJECT="$ROOT_DIR/MqttExplorer.Avalonia/MqttExplorer.Avalonia.csproj"
 ARTIFACTS_DIR="$ROOT_DIR/artifacts"
+APP_BINARY_NAME="Explorador MQTT"
 
 publish_target() {
   local runtime="$1"
@@ -15,7 +16,7 @@ publish_target() {
   if [[ -n "${APPLE_SIGN_IDENTITY:-}" ]]; then
     codesign --deep --force --verify --verbose \
       --sign "$APPLE_SIGN_IDENTITY" \
-      "$out_dir/MqttExplorer.Avalonia"
+      "$out_dir/$APP_BINARY_NAME"
   fi
 }
 

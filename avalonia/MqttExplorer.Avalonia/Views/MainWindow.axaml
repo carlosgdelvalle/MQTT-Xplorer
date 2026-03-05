@@ -9,7 +9,7 @@
         x:Class="MqttExplorer.Avalonia.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
-        Title="MQTT-Xplorer Avalonia MVP"
+        Title="Explorador MQTT"
         Width="1400"
         Height="900">
 
