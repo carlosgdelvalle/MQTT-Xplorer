@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="MqttExplorer.Avalonia/MqttExplorer.Avalonia.csproj" />
+  <Project Path="MqttExplorer.Core/MqttExplorer.Core.csproj" />
+  <Project Path="MqttExplorer.Infrastructure/MqttExplorer.Infrastructure.csproj" />
+  <Project Path="MqttExplorer.Tests/MqttExplorer.Tests.csproj" />
+</Solution>

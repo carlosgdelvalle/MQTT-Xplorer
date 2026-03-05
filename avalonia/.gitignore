@@ -1,0 +1,21 @@
+# Build output
+**/bin/
+**/obj/
+
+# IDE/editor
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test/build tooling
+TestResults/
+BenchmarkDotNet.Artifacts/
+*.trx
+*.coverage
+*.coveragexml
+
+# OS files
+.DS_Store

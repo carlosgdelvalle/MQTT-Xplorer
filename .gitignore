@@ -51,8 +51,9 @@ intro-mobile.png
 palette.png
 palette-mobile.png
 ffmpeg_info
-ffmpeg_info_mobile# Mobile test artifacts
-qrawvideorgb24-mobile.yuv
+ffmpeg_info_mobile
+
+# Mobile test artifacts
 *.yuv
 segment-mobile-*.gif
 mobile-demo.mp4
@@ -73,3 +74,12 @@ publish-test*.js
 verify-mobile-tree.js
 interactive-mobile-test.js
 long-wait-test.js
+
+# .NET/Avalonia generated output
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+**/*.suo
+**/*.userosscache
+**/*.sln.docstates
