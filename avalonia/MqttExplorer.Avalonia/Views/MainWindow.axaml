@@ -31,38 +31,38 @@
         </Border>
 
         <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8" Margin="0,12,10,0">
-            <TextBlock Text="Connection" FontWeight="Bold" FontSize="16" />
-            <TextBlock Text="Saved Connections" />
+            <TextBlock Text="Conexion" FontWeight="Bold" FontSize="16" />
+            <TextBlock Text="Conexiones guardadas" />
             <ComboBox ItemsSource="{Binding SavedConnections}"
                       SelectedItem="{Binding SelectedConnection}"
                       DisplayMemberBinding="{Binding Name}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Save" Command="{Binding SaveConnectionCommand}" />
-                <Button Content="Reload" Command="{Binding LoadConnectionsCommand}" />
+                <Button Content="Guardar" Command="{Binding SaveConnectionCommand}" />
+                <Button Content="Recargar" Command="{Binding LoadConnectionsCommand}" />
             </StackPanel>
             <TextBlock Text="Id" />
             <TextBox Text="{Binding ConnectionId}" />
-            <TextBlock Text="Name" />
+            <TextBlock Text="Nombre" />
             <TextBox Text="{Binding ConnectionName}" />
-            <TextBlock Text="Broker URL" />
+            <TextBlock Text="URL del broker" />
             <TextBox Text="{Binding BrokerUrl}" />
-            <TextBlock Text="Username" />
+            <TextBlock Text="Usuario" />
             <TextBox Text="{Binding Username}" />
-            <TextBlock Text="Password" />
+            <TextBlock Text="Contrasena" />
             <TextBox Text="{Binding Password}" PasswordChar="*" />
-            <TextBlock Text="Subscriptions (comma separated)" />
+            <TextBlock Text="Suscripciones (separadas por coma)" />
             <TextBox Text="{Binding Subscriptions}" />
             <CheckBox Content="TLS" IsChecked="{Binding Tls}" />
-            <CheckBox Content="Validate Certificates" IsChecked="{Binding CertValidation}" />
+            <CheckBox Content="Validar certificados" IsChecked="{Binding CertValidation}" />
             <TextBlock Text="{Binding ConnectionValidationError}"
                        Foreground="#D13438"
                        TextWrapping="Wrap"
                        IsVisible="{Binding HasConnectionValidationError}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Connect"
+                <Button Content="Conectar"
                         Command="{Binding ConnectCommand}"
                         IsEnabled="{Binding CanConnect}" />
-                <Button Content="Disconnect" Command="{Binding DisconnectCommand}" />
+                <Button Content="Desconectar" Command="{Binding DisconnectCommand}" />
             </StackPanel>
         </StackPanel>
 
@@ -75,20 +75,20 @@
                       Background="#2B2B2B" />
 
         <Grid Grid.Row="1" Grid.Column="2" RowDefinitions="Auto,Auto,*" Margin="0,12,10,0">
-            <TextBlock Grid.Row="0" Text="Topic Tree (live)" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" />
+            <TextBlock Grid.Row="0" Text="Arbol de topicos (en vivo)" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" />
             <Grid Grid.Row="1" ColumnDefinitions="Auto,220,8,Auto,8,Auto,8,Auto,8,*,Auto" Margin="0,0,0,8">
-                <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" />
-                <TextBox Grid.Column="1" Text="{Binding TopicFilter}" Watermark="topic/path contains...">
+                <TextBlock Grid.Column="0" Text="Filtro:" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding TopicFilter}" Watermark="contiene topico/ruta...">
                     <TextBox.KeyBindings>
                         <input:KeyBinding Gesture="Enter" Command="{Binding ApplyTopicFilterCommand}" />
                         <input:KeyBinding Gesture="Escape" Command="{Binding ClearTopicFilterCommand}" />
                     </TextBox.KeyBindings>
                 </TextBox>
-                <Button Grid.Column="3" Content="Clear" Command="{Binding ClearTopicFilterCommand}" />
-                <CheckBox Grid.Column="5" Content="Auto-refresh while browsing" IsChecked="{Binding AutoRefreshWhileBrowsing}" VerticalAlignment="Center" />
+                <Button Grid.Column="3" Content="Limpiar" Command="{Binding ClearTopicFilterCommand}" />
+                <CheckBox Grid.Column="5" Content="Autoactualizar al navegar" IsChecked="{Binding AutoRefreshWhileBrowsing}" VerticalAlignment="Center" />
                 <TextBlock Grid.Column="9" Text="{Binding PendingUpdatesLabel}" VerticalAlignment="Center" />
                 <Button Grid.Column="10"
-                        Content="Apply updates"
+                        Content="Aplicar actualizaciones"
                         Command="{Binding ApplyPendingUpdatesCommand}"
                         IsEnabled="{Binding HasPendingUpdates}" />
             </Grid>
@@ -111,14 +111,14 @@
                       Background="#2B2B2B" />
 
         <StackPanel Grid.Row="1" Grid.Column="4" Spacing="8" Margin="0,12,0,0">
-            <TextBlock Text="Selected Payload" FontWeight="Bold" FontSize="16" />
+            <TextBlock Text="Carga util seleccionada" FontWeight="Bold" FontSize="16" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="Copy Topic" Command="{Binding CopyTopicCommand}" IsEnabled="{Binding CanCopySelection}" />
-                <Button Content="Copy Payload" Command="{Binding CopyPayloadCommand}" IsEnabled="{Binding CanCopySelection}" />
-                <Button Content="Copy Path" Command="{Binding CopyPathCommand}" IsEnabled="{Binding CanCopySelection}" />
+                <Button Content="Copiar topico" Command="{Binding CopyTopicCommand}" IsEnabled="{Binding CanCopySelection}" />
+                <Button Content="Copiar carga util" Command="{Binding CopyPayloadCommand}" IsEnabled="{Binding CanCopySelection}" />
+                <Button Content="Copiar ruta" Command="{Binding CopyPathCommand}" IsEnabled="{Binding CanCopySelection}" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <TextBlock Text="Mode:" VerticalAlignment="Center" />
+                <TextBlock Text="Modo:" VerticalAlignment="Center" />
                 <ComboBox Width="180"
                           ItemsSource="{Binding PayloadModes}"
                           SelectedItem="{Binding SelectedPayloadMode}" />
@@ -130,7 +130,7 @@
                      Height="180"
                      TextWrapping="Wrap" />
 
-            <TextBlock Text="Message Timeline (last 25)" FontWeight="Bold" FontSize="16" Margin="0,8,0,0" />
+            <TextBlock Text="Linea de tiempo (ultimos 25)" FontWeight="Bold" FontSize="16" Margin="0,8,0,0" />
             <ListBox ItemsSource="{Binding SelectedTopicTimeline}" Height="200">
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:TopicTimelineEntryViewModel">
@@ -146,15 +146,15 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <TextBlock Text="Publish" FontWeight="Bold" FontSize="16" Margin="0,8,0,0" />
-            <TextBlock Text="Topic" />
+            <TextBlock Text="Publicar" FontWeight="Bold" FontSize="16" Margin="0,8,0,0" />
+            <TextBlock Text="Topico" />
             <TextBox Text="{Binding PublishTopic}" />
-            <TextBlock Text="Payload" />
+            <TextBlock Text="Carga util" />
             <TextBox Text="{Binding PublishPayload}" AcceptsReturn="True" Height="160" TextWrapping="Wrap" />
             <TextBlock Text="QoS" />
             <ComboBox ItemsSource="{Binding QosLevels}" SelectedItem="{Binding PublishQos}" />
-            <CheckBox Content="Retain" IsChecked="{Binding PublishRetain}" />
-            <Button Content="Publish"
+            <CheckBox Content="Retener" IsChecked="{Binding PublishRetain}" />
+            <Button Content="Publicar"
                     Command="{Binding PublishCommand}"
                     IsEnabled="{Binding CanPublish}" />
         </StackPanel>

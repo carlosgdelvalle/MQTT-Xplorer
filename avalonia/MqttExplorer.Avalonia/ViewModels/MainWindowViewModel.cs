@@ -21,7 +21,7 @@ namespace MqttExplorer.Avalonia.ViewModels;
 
 public enum PayloadInspectorMode
 {
-    Raw,
+    Crudo,
     Json,
     Hex,
     Base64,
@@ -39,7 +39,7 @@ public sealed class TopicTimelineEntryViewModel(
     public string PayloadPreview { get; } = payloadPreview;
     public bool IsChanged { get; } = isChanged;
     public string DiffSummary { get; } = diffSummary;
-    public string ChangeIndicator => IsChanged ? "changed" : "same";
+    public string ChangeIndicator => IsChanged ? "cambio" : "igual";
     public string HighlightBackground => IsChanged ? "#223A7C2D" : "Transparent";
 }
 
@@ -57,7 +57,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private bool _isProgrammaticSelection;
     private bool _isLoadingLayout;
 
-    [ObservableProperty] private string _connectionName = "Local broker";
+    [ObservableProperty] private string _connectionName = "Broker local";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanConnect))]
     [NotifyPropertyChangedFor(nameof(ConnectionValidationError))]
@@ -77,7 +77,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     [NotifyPropertyChangedFor(nameof(ConnectionValidationError))]
     [NotifyPropertyChangedFor(nameof(HasConnectionValidationError))]
     private string _subscriptions = "#";
-    [ObservableProperty] private string _status = "Disconnected";
+    [ObservableProperty] private string _status = "Desconectado";
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanPublish))]
     private bool _isConnected;
@@ -98,7 +98,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     [ObservableProperty] private string _topicFilter = string.Empty;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedPayload))]
-    private PayloadInspectorMode _selectedPayloadMode = PayloadInspectorMode.Raw;
+    private PayloadInspectorMode _selectedPayloadMode = PayloadInspectorMode.Crudo;
     [ObservableProperty] private GridLength _leftPaneWidth = new(300, GridUnitType.Pixel);
     [ObservableProperty] private GridLength _rightPaneWidth = new(360, GridUnitType.Pixel);
 
@@ -113,7 +113,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     ];
     public ObservableCollection<PayloadInspectorMode> PayloadModes { get; } =
     [
-        PayloadInspectorMode.Raw,
+        PayloadInspectorMode.Crudo,
         PayloadInspectorMode.Json,
         PayloadInspectorMode.Hex,
         PayloadInspectorMode.Base64,
@@ -155,7 +155,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public string SelectedPayload => FormatSelectedPayload();
     public string SelectedPayloadMetadata => BuildSelectedPayloadMetadata();
     public bool HasPendingUpdates => PendingUpdateCount > 0;
-    public string PendingUpdatesLabel => PendingUpdateCount > 0 ? $"{PendingUpdateCount} pending updates" : "Up to date";
+    public string PendingUpdatesLabel => PendingUpdateCount > 0 ? $"{PendingUpdateCount} actualizaciones pendientes" : "Actualizado";
     public bool CanConnect => string.IsNullOrWhiteSpace(ConnectionValidationError);
     public bool HasConnectionValidationError => !CanConnect;
     public string ConnectionValidationError => ValidateConnectionInputs();
@@ -237,7 +237,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 Subscriptions = ParseSubscriptions(Subscriptions),
             };
 
-            Status = "Connecting...";
+            Status = "Conectando...";
             await _connectionManager.AddOrReplaceConnectionAsync(ConnectionId, options);
         }
         catch (Exception ex)
@@ -273,7 +273,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         SavedConnections.Add(profile);
         await PersistConnectionsAsync();
-        Status = $"Saved connection '{profile.Name}'";
+        Status = $"Conexion guardada '{profile.Name}'";
     }
 
     [RelayCommand]
@@ -299,7 +299,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         await _connectionManager.RemoveConnectionAsync(ConnectionId);
         IsConnected = false;
-        Status = "Disconnected";
+        Status = "Desconectado";
     }
 
     [RelayCommand]
@@ -309,13 +309,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             if (!IsConnected)
             {
-                Status = "Connect first before publishing.";
+                Status = "Conectate primero antes de publicar.";
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(PublishTopic))
             {
-                Status = "Publish topic is required.";
+                Status = "El topico de publicacion es obligatorio.";
                 return;
             }
 
@@ -327,7 +327,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
                 null);
 
             await _connectionManager.PublishAsync(ConnectionId, message);
-            Status = $"Published to {PublishTopic}";
+            Status = $"Publicado en {PublishTopic}";
         }
         catch (Exception ex)
         {
@@ -343,7 +343,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
-        await CopyTextToClipboardAsync(SelectedNode.Name, "topic");
+        await CopyTextToClipboardAsync(SelectedNode.Name, "topico");
     }
 
     [RelayCommand(CanExecute = nameof(CanCopySelection))]
@@ -354,7 +354,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
-        await CopyTextToClipboardAsync(SelectedNode.FullPath, "path");
+        await CopyTextToClipboardAsync(SelectedNode.FullPath, "ruta");
     }
 
     [RelayCommand(CanExecute = nameof(CanCopySelection))]
@@ -365,7 +365,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             return;
         }
 
-        await CopyTextToClipboardAsync(SelectedPayload, "payload");
+        await CopyTextToClipboardAsync(SelectedPayload, "carga util");
     }
 
     private void OnConnectionStateChanged(string id, ConnectionState state)
@@ -381,10 +381,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             Status = state.Error is not null
                 ? $"Error: {state.Error}"
                 : state.Connecting
-                    ? "Connecting..."
+                    ? "Conectando..."
                     : state.Connected
-                        ? "Connected"
-                        : "Disconnected";
+                        ? "Conectado"
+                        : "Desconectado";
         });
     }
 
@@ -511,9 +511,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private static TopicNodeViewModel ToViewModel(TreeNode node, int depth = 0)
     {
         var vm = new TopicNodeViewModel(
-            node.SourceEdge?.Name ?? "(root)",
+            node.SourceEdge?.Name ?? "(raiz)",
             node.Path(),
-            node.Message?.Payload?.Format(node.Type).Text ?? "(empty)",
+            node.Message?.Payload?.Format(node.Type).Text ?? "(vacio)",
             depth);
 
         foreach (var edge in node.EdgeArray.OrderBy(e => e.Name))
@@ -529,9 +529,9 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
     private static void UpdateNode(TopicNodeViewModel existing, TreeNode source)
     {
-        existing.Name = source.SourceEdge?.Name ?? "(root)";
+        existing.Name = source.SourceEdge?.Name ?? "(raiz)";
         existing.FullPath = source.Path();
-        existing.PayloadText = source.Message?.Payload?.Format(source.Type).Text ?? "(empty)";
+        existing.PayloadText = source.Message?.Payload?.Format(source.Type).Text ?? "(vacio)";
         existing.IsExpanded = true;
 
         var children = source.EdgeArray
@@ -576,10 +576,10 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             Columns =
             {
                 new TextColumn<TopicNodeViewModel, string>("", node => node.ActivityIndicator),
-                new TextColumn<TopicNodeViewModel, string>("Topic", node => node.DisplayName),
-                new TextColumn<TopicNodeViewModel, string>("Last Message", node => node.LastMessagePreview),
-                new TextColumn<TopicNodeViewModel, string>("Updated", node => node.ReceivedAgo),
-                new TextColumn<TopicNodeViewModel, string>("Path", node => node.FullPath),
+                new TextColumn<TopicNodeViewModel, string>("Topico", node => node.DisplayName),
+                new TextColumn<TopicNodeViewModel, string>("Ultimo mensaje", node => node.LastMessagePreview),
+                new TextColumn<TopicNodeViewModel, string>("Actualizado", node => node.ReceivedAgo),
+                new TextColumn<TopicNodeViewModel, string>("Ruta", node => node.FullPath),
             },
         };
 
@@ -661,7 +661,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         var lastMessage = activity?.LastMessagePreview ?? TruncatePayload(payloadText);
 
         yield return new TopicNodeViewModel(
-            node.SourceEdge?.Name ?? "(root)",
+            node.SourceEdge?.Name ?? "(raiz)",
             path,
             payloadText,
             depth,
@@ -724,27 +724,27 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(ConnectionId))
         {
-            return "Connection Id is required.";
+            return "El Id de conexion es obligatorio.";
         }
 
         if (string.IsNullOrWhiteSpace(BrokerUrl))
         {
-            return "Broker URL is required.";
+            return "La URL del broker es obligatoria.";
         }
 
         if (!Uri.TryCreate(BrokerUrl, UriKind.Absolute, out var brokerUri))
         {
-            return "Broker URL must be an absolute URI (e.g. mqtt://localhost:1883).";
+            return "La URL del broker debe ser una URI absoluta (ej. mqtt://localhost:1883).";
         }
 
         if (!IsSupportedScheme(brokerUri.Scheme))
         {
-            return "Broker URL scheme must be mqtt, mqtts, ws, or wss.";
+            return "El esquema de la URL debe ser mqtt, mqtts, ws o wss.";
         }
 
         if (!AreSubscriptionsValid(Subscriptions))
         {
-            return "Subscriptions must be comma-separated non-empty topics.";
+            return "Las suscripciones deben ser topicos no vacios separados por comas.";
         }
 
         return string.Empty;
@@ -791,13 +791,13 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         if (SelectedNode is null || string.IsNullOrWhiteSpace(SelectedNode.PayloadBase64))
         {
-            return "(no payload)";
+            return "(sin payload)";
         }
 
         var payload = new Base64Message(SelectedNode.PayloadBase64);
         return SelectedPayloadMode switch
         {
-            PayloadInspectorMode.Raw => payload.Format().Text,
+            PayloadInspectorMode.Crudo => payload.Format().Text,
             PayloadInspectorMode.Json => payload.Format("json").Text,
             PayloadInspectorMode.Hex => payload.ToHexString(),
             PayloadInspectorMode.Base64 => payload.Base64Value,
@@ -809,11 +809,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         if (SelectedNode is null)
         {
-            return "No topic selected.";
+            return "No hay topico seleccionado.";
         }
 
         var received = SelectedNode.LastReceivedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
-        return $"Size: {SelectedNode.PayloadSizeBytes} bytes  |  QoS: {SelectedNode.QosLabel}  |  Retain: {SelectedNode.Retain}  |  Received: {received}";
+        return $"Tamano: {SelectedNode.PayloadSizeBytes} bytes  |  QoS: {SelectedNode.QosLabel}  |  Retener: {SelectedNode.Retain}  |  Recibido: {received}";
     }
 
     private void RebuildSelectedTopicTimeline()
@@ -845,7 +845,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             var isChanged = hasPrevious && !string.Equals(previousPayload, payload, StringComparison.Ordinal);
             var diffSummary = hasPrevious
                 ? BuildDiffSummary(previousPayload, payload)
-                : "initial";
+                : "inicial";
             var preview = TruncatePayload(payload);
             var localTime = record.Received.ToLocalTime();
 
@@ -870,7 +870,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         if (string.Equals(previous, current, StringComparison.Ordinal))
         {
-            return "same";
+            return "igual";
         }
 
         var prefix = 0;
@@ -892,7 +892,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         var removed = Math.Max(0, previousSuffixIndex - prefix + 1);
         var added = Math.Max(0, currentSuffixIndex - prefix + 1);
-        return $"chg@{prefix}: -{removed}/+{added}";
+        return $"cambio@{prefix}: -{removed}/+{added}";
     }
 
     private async Task CopyTextToClipboardAsync(string value, string label)
@@ -900,12 +900,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
             desktop.MainWindow?.Clipboard is null)
         {
-            Status = $"Unable to copy {label}: clipboard is unavailable.";
+            Status = $"No se pudo copiar {label}: el portapapeles no esta disponible.";
             return;
         }
 
         await desktop.MainWindow.Clipboard.SetTextAsync(value ?? string.Empty);
-        Status = $"Copied {label}.";
+        Status = $"Se copio {label}.";
     }
 
     private void QueueLayoutPersistence()
@@ -1006,20 +1006,20 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 
         if (elapsed < TimeSpan.FromSeconds(1))
         {
-            return "just now";
+            return "justo ahora";
         }
 
         if (elapsed < TimeSpan.FromMinutes(1))
         {
-            return $"{(int)elapsed.TotalSeconds}s ago";
+            return $"hace {(int)elapsed.TotalSeconds}s";
         }
 
         if (elapsed < TimeSpan.FromHours(1))
         {
-            return $"{(int)elapsed.TotalMinutes}m ago";
+            return $"hace {(int)elapsed.TotalMinutes}m";
         }
 
-        return $"{(int)elapsed.TotalHours}h ago";
+        return $"hace {(int)elapsed.TotalHours}h";
     }
 
     private static IReadOnlyList<Subscription> ParseSubscriptions(string value)
@@ -1083,7 +1083,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
 
         await PersistConnectionsAsync();
-        Status = "Imported legacy connections.";
+        Status = "Conexiones heredadas importadas.";
     }
 
     private sealed class TopicActivity(string lastMessagePreview, DateTimeOffset receivedAt)
