@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -12,7 +13,12 @@ public sealed partial class TopicNodeViewModel : ObservableObject
         int depth = 0,
         string? lastMessagePreview = null,
         string? receivedAgo = null,
-        bool hasRecentActivity = false)
+        bool hasRecentActivity = false,
+        string? payloadBase64 = null,
+        int payloadSizeBytes = 0,
+        string? qosLabel = null,
+        bool retain = false,
+        DateTimeOffset? lastReceivedAt = null)
     {
         _name = name;
         _fullPath = fullPath;
@@ -21,6 +27,11 @@ public sealed partial class TopicNodeViewModel : ObservableObject
         _lastMessagePreview = lastMessagePreview ?? string.Empty;
         _receivedAgo = receivedAgo ?? string.Empty;
         _hasRecentActivity = hasRecentActivity;
+        _payloadBase64 = payloadBase64 ?? string.Empty;
+        _payloadSizeBytes = payloadSizeBytes;
+        _qosLabel = qosLabel ?? string.Empty;
+        _retain = retain;
+        _lastReceivedAt = lastReceivedAt;
         _isExpanded = true;
     }
 
@@ -31,6 +42,11 @@ public sealed partial class TopicNodeViewModel : ObservableObject
     [ObservableProperty] private string _lastMessagePreview;
     [ObservableProperty] private string _receivedAgo;
     [ObservableProperty] private bool _hasRecentActivity;
+    [ObservableProperty] private string _payloadBase64;
+    [ObservableProperty] private int _payloadSizeBytes;
+    [ObservableProperty] private string _qosLabel;
+    [ObservableProperty] private bool _retain;
+    [ObservableProperty] private DateTimeOffset? _lastReceivedAt;
     [ObservableProperty] private bool _isExpanded;
     public ObservableCollection<TopicNodeViewModel> Children { get; } = [];
 

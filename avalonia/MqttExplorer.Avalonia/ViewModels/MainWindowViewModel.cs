@@ -5,7 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using Avalonia.Controls.Models.TreeDataGrid;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,6 +19,30 @@ using MqttExplorer.Infrastructure;
 
 namespace MqttExplorer.Avalonia.ViewModels;
 
+public enum PayloadInspectorMode
+{
+    Raw,
+    Json,
+    Hex,
+    Base64,
+}
+
+public sealed class TopicTimelineEntryViewModel(
+    string timeLabel,
+    string receivedAtLabel,
+    string payloadPreview,
+    bool isChanged,
+    string diffSummary)
+{
+    public string TimeLabel { get; } = timeLabel;
+    public string ReceivedAtLabel { get; } = receivedAtLabel;
+    public string PayloadPreview { get; } = payloadPreview;
+    public bool IsChanged { get; } = isChanged;
+    public string DiffSummary { get; } = diffSummary;
+    public string ChangeIndicator => IsChanged ? "changed" : "same";
+    public string HighlightBackground => IsChanged ? "#223A7C2D" : "Transparent";
+}
+
 public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
 {
     private readonly IMqttConnectionManager _connectionManager;
@@ -25,9 +51,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private readonly Dictionary<string, TopicActivity> _lastMessageByPath = new(StringComparer.Ordinal);
     private readonly ConcurrentQueue<MqttMessageDto> _pendingMessages = new();
     private readonly DispatcherTimer _treeUpdateTimer;
+    private readonly DispatcherTimer _layoutPersistTimer;
     private DateTimeOffset _lastTreeInteractionAt = DateTimeOffset.MinValue;
     private DateTimeOffset _lastActivityRefreshAt = DateTimeOffset.MinValue;
     private bool _isProgrammaticSelection;
+    private bool _isLoadingLayout;
 
     [ObservableProperty] private string _connectionName = "Local broker";
     [ObservableProperty]
@@ -68,14 +96,27 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     private int _pendingUpdateCount;
     [ObservableProperty] private bool _autoRefreshWhileBrowsing = true;
     [ObservableProperty] private string _topicFilter = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedPayload))]
+    private PayloadInspectorMode _selectedPayloadMode = PayloadInspectorMode.Raw;
+    [ObservableProperty] private GridLength _leftPaneWidth = new(300, GridUnitType.Pixel);
+    [ObservableProperty] private GridLength _rightPaneWidth = new(360, GridUnitType.Pixel);
 
     public ObservableCollection<TopicNodeViewModel> TopicNodes { get; } = [];
+    public ObservableCollection<TopicTimelineEntryViewModel> SelectedTopicTimeline { get; } = [];
     public ObservableCollection<ConnectionProfile> SavedConnections { get; } = [];
     public ObservableCollection<QoS> QosLevels { get; } =
     [
         QoS.AtMostOnce,
         QoS.AtLeastOnce,
         QoS.ExactlyOnce,
+    ];
+    public ObservableCollection<PayloadInspectorMode> PayloadModes { get; } =
+    [
+        PayloadInspectorMode.Raw,
+        PayloadInspectorMode.Json,
+        PayloadInspectorMode.Hex,
+        PayloadInspectorMode.Base64,
     ];
     [ObservableProperty] private FlatTreeDataGridSource<TopicNodeViewModel> _topicTreeSource;
 
@@ -101,27 +142,49 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             Interval = TimeSpan.FromMilliseconds(150),
         };
         _treeUpdateTimer.Tick += (_, _) => FlushPendingTreeUpdates();
+        _layoutPersistTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(600),
+        };
+        _layoutPersistTimer.Tick += OnLayoutPersistTick;
         _treeUpdateTimer.Start();
         _ = LoadConnectionsAsync();
+        _ = LoadUiLayoutAsync();
     }
 
-    public string SelectedPayload =>
-        SelectedNode?.PayloadText ?? "(no payload)";
+    public string SelectedPayload => FormatSelectedPayload();
+    public string SelectedPayloadMetadata => BuildSelectedPayloadMetadata();
     public bool HasPendingUpdates => PendingUpdateCount > 0;
     public string PendingUpdatesLabel => PendingUpdateCount > 0 ? $"{PendingUpdateCount} pending updates" : "Up to date";
     public bool CanConnect => string.IsNullOrWhiteSpace(ConnectionValidationError);
     public bool HasConnectionValidationError => !CanConnect;
     public string ConnectionValidationError => ValidateConnectionInputs();
     public bool CanPublish => IsConnected && !string.IsNullOrWhiteSpace(PublishTopic);
+    public bool CanCopySelection => SelectedNode is not null;
 
     partial void OnSelectedNodeChanged(TopicNodeViewModel? value)
     {
         OnPropertyChanged(nameof(SelectedPayload));
+        OnPropertyChanged(nameof(SelectedPayloadMetadata));
+        OnPropertyChanged(nameof(CanCopySelection));
+        CopyTopicCommand.NotifyCanExecuteChanged();
+        CopyPathCommand.NotifyCanExecuteChanged();
+        CopyPayloadCommand.NotifyCanExecuteChanged();
         if (value is not null && string.IsNullOrWhiteSpace(PublishTopic))
         {
             PublishTopic = value.FullPath;
         }
+
+        RebuildSelectedTopicTimeline();
     }
+
+    partial void OnSelectedPayloadModeChanged(PayloadInspectorMode value)
+    {
+        OnPropertyChanged(nameof(SelectedPayload));
+    }
+
+    partial void OnLeftPaneWidthChanged(GridLength value) => QueueLayoutPersistence();
+    partial void OnRightPaneWidthChanged(GridLength value) => QueueLayoutPersistence();
 
     partial void OnTopicFilterChanged(string value)
     {
@@ -272,6 +335,39 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanCopySelection))]
+    private async Task CopyTopicAsync()
+    {
+        if (SelectedNode is null)
+        {
+            return;
+        }
+
+        await CopyTextToClipboardAsync(SelectedNode.Name, "topic");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopySelection))]
+    private async Task CopyPathAsync()
+    {
+        if (SelectedNode is null)
+        {
+            return;
+        }
+
+        await CopyTextToClipboardAsync(SelectedNode.FullPath, "path");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopySelection))]
+    private async Task CopyPayloadAsync()
+    {
+        if (SelectedNode is null)
+        {
+            return;
+        }
+
+        await CopyTextToClipboardAsync(SelectedPayload, "payload");
+    }
+
     private void OnConnectionStateChanged(string id, ConnectionState state)
     {
         if (id != ConnectionId)
@@ -368,6 +464,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         var snapshot = flatNodes.ToArray();
         TopicTreeSource = CreateTopicTreeSource(snapshot);
         RestoreSelection(snapshot, previouslySelectedPath);
+        RebuildSelectedTopicTimeline();
     }
 
     private static void SyncNodes(
@@ -552,6 +649,11 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         var path = node.Path();
         var payloadText = node.Message?.Payload?.Format(node.Type).Text ?? "(empty)";
+        var payloadBase64 = node.Message?.Payload?.Base64Value ?? string.Empty;
+        var payloadLength = node.Message?.Length ?? 0;
+        var receivedAt = node.Message?.Received;
+        var qosLabel = node.Message?.Qos.ToString() ?? string.Empty;
+        var retain = node.Message?.Retain ?? false;
         _lastMessageByPath.TryGetValue(path, out var activity);
         var hasRecentActivity = activity is not null &&
             snapshotTime - activity.ReceivedAt <= TimeSpan.FromSeconds(2);
@@ -565,7 +667,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
             depth,
             lastMessage,
             receivedAgo,
-            hasRecentActivity);
+            hasRecentActivity,
+            payloadBase64,
+            payloadLength,
+            qosLabel,
+            retain,
+            receivedAt);
 
         foreach (var edge in node.EdgeArray.OrderBy(e => e.Name))
         {
@@ -588,6 +695,7 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         {
             while (_pendingMessages.TryDequeue(out var message))
             {
+                TrackTopicActivity(message);
                 _topicTree.Enqueue(message);
             }
 
@@ -679,6 +787,180 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
         RebuildTopicTree();
     }
 
+    private string FormatSelectedPayload()
+    {
+        if (SelectedNode is null || string.IsNullOrWhiteSpace(SelectedNode.PayloadBase64))
+        {
+            return "(no payload)";
+        }
+
+        var payload = new Base64Message(SelectedNode.PayloadBase64);
+        return SelectedPayloadMode switch
+        {
+            PayloadInspectorMode.Raw => payload.Format().Text,
+            PayloadInspectorMode.Json => payload.Format("json").Text,
+            PayloadInspectorMode.Hex => payload.ToHexString(),
+            PayloadInspectorMode.Base64 => payload.Base64Value,
+            _ => payload.Format().Text,
+        };
+    }
+
+    private string BuildSelectedPayloadMetadata()
+    {
+        if (SelectedNode is null)
+        {
+            return "No topic selected.";
+        }
+
+        var received = SelectedNode.LastReceivedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
+        return $"Size: {SelectedNode.PayloadSizeBytes} bytes  |  QoS: {SelectedNode.QosLabel}  |  Retain: {SelectedNode.Retain}  |  Received: {received}";
+    }
+
+    private void RebuildSelectedTopicTimeline()
+    {
+        SelectedTopicTimeline.Clear();
+        if (SelectedNode is null || string.IsNullOrWhiteSpace(SelectedNode.FullPath))
+        {
+            return;
+        }
+
+        var node = _topicTree.FindNode(SelectedNode.FullPath);
+        if (node is null)
+        {
+            return;
+        }
+
+        var entries = node.MessageHistory
+            .ToArray()
+            .TakeLast(25)
+            .ToArray();
+
+        var timeline = new List<TopicTimelineEntryViewModel>(entries.Length);
+        string previousPayload = string.Empty;
+        var hasPrevious = false;
+        for (var i = 0; i < entries.Length; i++)
+        {
+            var record = entries[i];
+            var payload = record.Payload?.Format().Text ?? string.Empty;
+            var isChanged = hasPrevious && !string.Equals(previousPayload, payload, StringComparison.Ordinal);
+            var diffSummary = hasPrevious
+                ? BuildDiffSummary(previousPayload, payload)
+                : "initial";
+            var preview = TruncatePayload(payload);
+            var localTime = record.Received.ToLocalTime();
+
+            timeline.Add(new TopicTimelineEntryViewModel(
+                localTime.ToString("HH:mm:ss"),
+                localTime.ToString("yyyy-MM-dd HH:mm:ss"),
+                preview,
+                isChanged,
+                diffSummary));
+
+            previousPayload = payload;
+            hasPrevious = true;
+        }
+
+        for (var i = timeline.Count - 1; i >= 0; i--)
+        {
+            SelectedTopicTimeline.Add(timeline[i]);
+        }
+    }
+
+    private static string BuildDiffSummary(string previous, string current)
+    {
+        if (string.Equals(previous, current, StringComparison.Ordinal))
+        {
+            return "same";
+        }
+
+        var prefix = 0;
+        var maxPrefix = Math.Min(previous.Length, current.Length);
+        while (prefix < maxPrefix && previous[prefix] == current[prefix])
+        {
+            prefix++;
+        }
+
+        var previousSuffixIndex = previous.Length - 1;
+        var currentSuffixIndex = current.Length - 1;
+        while (previousSuffixIndex >= prefix &&
+               currentSuffixIndex >= prefix &&
+               previous[previousSuffixIndex] == current[currentSuffixIndex])
+        {
+            previousSuffixIndex--;
+            currentSuffixIndex--;
+        }
+
+        var removed = Math.Max(0, previousSuffixIndex - prefix + 1);
+        var added = Math.Max(0, currentSuffixIndex - prefix + 1);
+        return $"chg@{prefix}: -{removed}/+{added}";
+    }
+
+    private async Task CopyTextToClipboardAsync(string value, string label)
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop ||
+            desktop.MainWindow?.Clipboard is null)
+        {
+            Status = $"Unable to copy {label}: clipboard is unavailable.";
+            return;
+        }
+
+        await desktop.MainWindow.Clipboard.SetTextAsync(value ?? string.Empty);
+        Status = $"Copied {label}.";
+    }
+
+    private void QueueLayoutPersistence()
+    {
+        if (_isLoadingLayout)
+        {
+            return;
+        }
+
+        _layoutPersistTimer.Stop();
+        _layoutPersistTimer.Start();
+    }
+
+    private async void OnLayoutPersistTick(object? sender, EventArgs e)
+    {
+        _layoutPersistTimer.Stop();
+        await SaveUiLayoutAsync();
+    }
+
+    private async Task LoadUiLayoutAsync()
+    {
+        try
+        {
+            _isLoadingLayout = true;
+            var settings = await _configStore.LoadAsync<UiLayoutSettings>("uiLayout");
+            if (settings is null)
+            {
+                return;
+            }
+
+            var left = settings.LeftPaneWidth is > 180 and < 1000 ? settings.LeftPaneWidth : 300;
+            var right = settings.RightPaneWidth is > 220 and < 1200 ? settings.RightPaneWidth : 360;
+            LeftPaneWidth = new GridLength(left, GridUnitType.Pixel);
+            RightPaneWidth = new GridLength(right, GridUnitType.Pixel);
+        }
+        catch
+        {
+            // UI layout persistence is optional; ignore malformed or missing settings.
+        }
+        finally
+        {
+            _isLoadingLayout = false;
+        }
+    }
+
+    private async Task SaveUiLayoutAsync()
+    {
+        var settings = new UiLayoutSettings
+        {
+            LeftPaneWidth = LeftPaneWidth.IsAbsolute ? LeftPaneWidth.Value : 300,
+            RightPaneWidth = RightPaneWidth.IsAbsolute ? RightPaneWidth.Value : 360,
+        };
+        await _configStore.SaveAsync("uiLayout", settings);
+    }
+
     private void TrackTopicActivity(MqttMessageDto message)
     {
         if (string.IsNullOrWhiteSpace(message.Topic))
@@ -756,6 +1038,8 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _treeUpdateTimer.Stop();
+        _layoutPersistTimer.Stop();
+        await SaveUiLayoutAsync();
         await _connectionManager.RemoveAllConnectionsAsync();
         await _connectionManager.DisposeAsync();
     }
@@ -806,6 +1090,12 @@ public partial class MainWindowViewModel : ViewModelBase, IAsyncDisposable
     {
         public string LastMessagePreview { get; } = lastMessagePreview;
         public DateTimeOffset ReceivedAt { get; } = receivedAt;
+    }
+
+    private sealed class UiLayoutSettings
+    {
+        public double LeftPaneWidth { get; init; } = 300;
+        public double RightPaneWidth { get; init; } = 360;
     }
 
     private sealed class LegacyConnection

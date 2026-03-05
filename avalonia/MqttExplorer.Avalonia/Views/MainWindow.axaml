@@ -17,12 +17,20 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <Grid ColumnDefinitions="300,*,360" RowDefinitions="Auto,*" Margin="12">
-        <Border Grid.ColumnSpan="3" Padding="8" Background="#1F2A44" CornerRadius="6">
+    <Grid RowDefinitions="Auto,*" Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{Binding LeftPaneWidth, Mode=TwoWay}" MinWidth="220" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="*" MinWidth="320" />
+            <ColumnDefinition Width="6" />
+            <ColumnDefinition Width="{Binding RightPaneWidth, Mode=TwoWay}" MinWidth="280" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.ColumnSpan="5" Padding="8" Background="#1F2A44" CornerRadius="6">
             <TextBlock Text="{Binding Status}" Foreground="White" />
         </Border>
 
-        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8" Margin="0,12,12,0">
+        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="8" Margin="0,12,10,0">
             <TextBlock Text="Connection" FontWeight="Bold" FontSize="16" />
             <TextBlock Text="Saved Connections" />
             <ComboBox ItemsSource="{Binding SavedConnections}"
@@ -58,7 +66,15 @@
             </StackPanel>
         </StackPanel>
 
-        <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="0,12,12,0">
+        <GridSplitter Grid.Row="1"
+                      Grid.Column="1"
+                      ResizeDirection="Columns"
+                      ResizeBehavior="PreviousAndNext"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      Background="#2B2B2B" />
+
+        <Grid Grid.Row="1" Grid.Column="2" RowDefinitions="Auto,Auto,*" Margin="0,12,10,0">
             <TextBlock Grid.Row="0" Text="Topic Tree (live)" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" />
             <Grid Grid.Row="1" ColumnDefinitions="Auto,220,8,Auto,8,Auto,8,Auto,8,*,Auto" Margin="0,0,0,8">
                 <TextBlock Grid.Column="0" Text="Filter:" VerticalAlignment="Center" />
@@ -86,13 +102,49 @@
             </Border>
         </Grid>
 
-        <StackPanel Grid.Row="1" Grid.Column="2" Spacing="8" Margin="0,12,0,0">
+        <GridSplitter Grid.Row="1"
+                      Grid.Column="3"
+                      ResizeDirection="Columns"
+                      ResizeBehavior="PreviousAndNext"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Stretch"
+                      Background="#2B2B2B" />
+
+        <StackPanel Grid.Row="1" Grid.Column="4" Spacing="8" Margin="0,12,0,0">
             <TextBlock Text="Selected Payload" FontWeight="Bold" FontSize="16" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Copy Topic" Command="{Binding CopyTopicCommand}" IsEnabled="{Binding CanCopySelection}" />
+                <Button Content="Copy Payload" Command="{Binding CopyPayloadCommand}" IsEnabled="{Binding CanCopySelection}" />
+                <Button Content="Copy Path" Command="{Binding CopyPathCommand}" IsEnabled="{Binding CanCopySelection}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Mode:" VerticalAlignment="Center" />
+                <ComboBox Width="180"
+                          ItemsSource="{Binding PayloadModes}"
+                          SelectedItem="{Binding SelectedPayloadMode}" />
+            </StackPanel>
+            <TextBlock Text="{Binding SelectedPayloadMetadata}" TextWrapping="Wrap" Foreground="#D0D0D0" />
             <TextBox Text="{Binding SelectedPayload}"
                      IsReadOnly="True"
                      AcceptsReturn="True"
-                     Height="260"
+                     Height="180"
                      TextWrapping="Wrap" />
+
+            <TextBlock Text="Message Timeline (last 25)" FontWeight="Bold" FontSize="16" Margin="0,8,0,0" />
+            <ListBox ItemsSource="{Binding SelectedTopicTimeline}" Height="200">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TopicTimelineEntryViewModel">
+                        <Border Background="{Binding HighlightBackground}" Padding="6" Margin="0,0,0,4" CornerRadius="4">
+                            <Grid ColumnDefinitions="70,70,*" RowDefinitions="Auto,Auto">
+                                <TextBlock Grid.Column="0" Text="{Binding TimeLabel}" FontFamily="Consolas" />
+                                <TextBlock Grid.Column="1" Text="{Binding ChangeIndicator}" />
+                                <TextBlock Grid.Column="2" Text="{Binding DiffSummary}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding PayloadPreview}" TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
             <TextBlock Text="Publish" FontWeight="Bold" FontSize="16" Margin="0,8,0,0" />
             <TextBlock Text="Topic" />
