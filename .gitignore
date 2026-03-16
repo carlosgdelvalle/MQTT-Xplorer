@@ -83,3 +83,4 @@ long-wait-test.js
 **/*.suo
 **/*.userosscache
 **/*.sln.docstates
+avalonia/artifacts/
